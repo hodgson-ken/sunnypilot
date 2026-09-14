@@ -191,13 +191,16 @@ class SpeedLimitAssist:
 
   @property
   def apply_confirm_speed_threshold(self) -> bool:
-    # below CST: always require user confirmation
-    if self.v_cruise_cluster_below_confirm_speed_threshold:
-      return True
+    # Direction-aware confirmation (personal fork change).
+    # A decrease in the speed limit is the safe direction: apply it automatically
+    # at any speed so that entering a lower-limit zone (school, residential,
+    # construction) does not wait on a button press.
+    prev = self.prev_speed_limit_final_last_conv
+    if prev > 0 and self.speed_limit_final_last_conv < prev:
+      return False
 
-    # at/above CST:
-    # - new speed limit >= CST: auto change
-    # - new speed limit < CST: user confirmation required
+    # An increase is gated: only auto-apply when the new limit is at/above CST,
+    # so surface-street limit bumps still require user confirmation.
     return bool(self.speed_limit_final_last_conv < CONFIRM_SPEED_THRESHOLD[self.is_metric])
 
   def get_current_acceleration_as_target(self) -> float:
