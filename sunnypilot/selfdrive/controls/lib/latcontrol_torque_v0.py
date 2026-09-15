@@ -10,6 +10,7 @@ from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
+from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune
 
 # At higher speeds (25+mph) we can assume:
 # Lateral acceleration achieved by a specific car correlates to
@@ -48,7 +49,19 @@ class LatControlTorque(LatControl):
     self.previous_measurement = 0.0
     self.measurement_rate_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
+    # Personal fork: live-tunable gains, stock values unless /data/steer_tune.json says otherwise
+    self.friction_threshold = FRICTION_THRESHOLD
+    self.steer_tune = SteerTune()
+
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
+
+  def _apply_steer_tune(self):
+    tune = self.steer_tune
+    self.pid._k_p = [INTERP_SPEEDS, [k * tune.kp_scale for k in KP_INTERP]]
+    self.pid._k_i = [[0], [tune.ki]]
+    self.pid._k_d = [[0], [tune.kd]]
+    self.friction_threshold = tune.friction_threshold
+    self.measurement_rate_filter.update_alpha(1 / (2 * np.pi * tune.rate_filter_hz))
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -64,6 +77,9 @@ class LatControlTorque(LatControl):
     # Override torque params from extension
     if self.extension.update_override_torque_params(self.torque_params):
       self.update_limits()
+
+    if self.steer_tune.update():
+      self._apply_steer_tune()
 
     pid_log = log.ControlsState.LateralTorqueState.new_message()
     pid_log.version = VERSION
@@ -97,7 +113,7 @@ class LatControlTorque(LatControl):
       # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
       ff -= self.torque_params.latAccelOffset
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
-      ff += get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
+      ff += get_friction(error, lateral_accel_deadzone, self.friction_threshold, self.torque_params)
 
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error,
