@@ -27,13 +27,15 @@ KNOBS: dict[str, tuple[float, float, float]] = {
   "friction_threshold": (0.3, 0.1, 1.0),  # lat accel error band over which the friction term ramps in
   "rate_filter_hz": (1.2, 0.3, 5.0),      # low-pass cutoff on the measurement rate that feeds KD
   # max rate of change of the final torque command, in steer-max units per second,
-  # interpolated on speed between slew_lo (at/below 10 m/s) and slew_hi (at/above 25 m/s).
+  # interpolated on speed between slew_lo (at/below 7 m/s) and slew_hi (at/above 16 m/s).
   # 100 is effectively unlimited (stock); Toyota's own EPS rate limit is ~1.0/s.
   "slew_lo": (100.0, 0.5, 100.0),
   "slew_hi": (100.0, 0.1, 100.0),
 }
 
-SLEW_SPEEDS = [10.0, 25.0]  # m/s
+# The highway ping-pong is present from ~35 mph up, so the tight limit must be fully
+# in by 16 m/s; the loose limit only needs to cover parking-lot and tight-corner speeds.
+SLEW_SPEEDS = [7.0, 16.0]  # m/s
 
 
 class SteerTune:
