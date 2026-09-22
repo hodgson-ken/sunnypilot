@@ -10,7 +10,7 @@ from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
-from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune
+from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune, SLEW_SPEEDS
 
 # At higher speeds (25+mph) we can assume:
 # Lateral acceleration achieved by a specific car correlates to
@@ -52,6 +52,7 @@ class LatControlTorque(LatControl):
     # Personal fork: live-tunable gains, stock values unless /data/steer_tune.json says otherwise
     self.friction_threshold = FRICTION_THRESHOLD
     self.steer_tune = SteerTune()
+    self.last_output_torque = 0.0
 
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
 
@@ -85,6 +86,7 @@ class LatControlTorque(LatControl):
     pid_log.version = VERSION
     if not active:
       output_torque = 0.0
+      self.last_output_torque = 0.0
       pid_log.active = False
     else:
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
@@ -128,6 +130,13 @@ class LatControlTorque(LatControl):
       pid_log, output_torque = self.extension.update(CS, VM, self.pid, params, ff, pid_log, setpoint, measurement, calibrated_pose, roll_compensation,
                                                      future_desired_lateral_accel, measurement, lateral_accel_deadzone, gravity_adjusted_future_lateral_accel,
                                                      desired_curvature, measured_curvature, steer_limited_by_safety, output_torque)
+
+      # Personal fork: cap how fast the torque command may change. Small fast corrections
+      # still pass; large fast swings (the 1.5-2 Hz highway ping-pong) are turned into slow ramps.
+      slew = float(np.interp(CS.vEgo, SLEW_SPEEDS, [self.steer_tune.slew_lo, self.steer_tune.slew_hi]))
+      max_step = slew * self.dt
+      output_torque = float(np.clip(output_torque, self.last_output_torque - max_step, self.last_output_torque + max_step))
+      self.last_output_torque = output_torque
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
