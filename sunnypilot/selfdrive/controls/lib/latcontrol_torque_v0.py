@@ -50,7 +50,6 @@ class LatControlTorque(LatControl):
     self.measurement_rate_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
     # Personal fork: live-tunable gains, stock values unless /data/steer_tune.json says otherwise
-    self.friction_threshold = FRICTION_THRESHOLD
     self.steer_tune = SteerTune()
     self.last_output_torque = 0.0
 
@@ -61,7 +60,6 @@ class LatControlTorque(LatControl):
     self.pid._k_p = [INTERP_SPEEDS, [k * tune.kp_scale for k in KP_INTERP]]
     self.pid._k_i = [[0], [tune.ki]]
     self.pid._k_d = [[0], [tune.kd]]
-    self.friction_threshold = tune.friction_threshold
     self.measurement_rate_filter.update_alpha(1 / (2 * np.pi * tune.rate_filter_hz))
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
@@ -115,7 +113,9 @@ class LatControlTorque(LatControl):
       # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
       ff -= self.torque_params.latAccelOffset
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
-      ff += get_friction(error, lateral_accel_deadzone, self.friction_threshold, self.torque_params)
+      friction_threshold = float(np.interp(CS.vEgo, SLEW_SPEEDS,
+                                           [self.steer_tune.friction_threshold_lo, self.steer_tune.friction_threshold]))
+      ff += get_friction(error, lateral_accel_deadzone, friction_threshold, self.torque_params)
 
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error,

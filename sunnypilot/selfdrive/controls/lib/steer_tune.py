@@ -24,7 +24,14 @@ KNOBS: dict[str, tuple[float, float, float]] = {
   "kd": (0.0, 0.0, 0.5),                  # derivative gain on filtered lat accel rate, m/s^2 per m/s^3
   "kp_scale": (1.0, 0.3, 1.5),            # multiplier on the whole speed-scheduled KP curve
   "ki": (0.3, 0.0, 0.5),                  # integral gain
-  "friction_threshold": (0.3, 0.1, 1.0),  # lat accel error band over which the friction term ramps in
+  # Lat accel error band over which the friction term ramps in. Speed-scheduled like the
+  # slew limit: a narrow band at low speed makes the friction feedforward reach full strength
+  # as soon as there is any error, which is what breaks the steering rack's static friction
+  # and stops the stick-slip stepping in slow corners. A wide band at highway speed keeps the
+  # same term from acting as a relay and chattering. friction_threshold sets the high-speed
+  # value; friction_threshold_lo the low-speed one (both interpolated on SLEW_SPEEDS).
+  "friction_threshold": (0.3, 0.1, 1.0),
+  "friction_threshold_lo": (0.3, 0.1, 1.0),
   "rate_filter_hz": (1.2, 0.3, 5.0),      # low-pass cutoff on the measurement rate that feeds KD
   # max rate of change of the final torque command, in steer-max units per second,
   # interpolated on speed between slew_lo (at/below 7 m/s) and slew_hi (at/above 16 m/s).
