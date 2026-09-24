@@ -10,7 +10,7 @@ from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
-from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune, SLEW_SPEEDS
+from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune, SLEW_SPEEDS, FRICTION_SPEEDS
 
 # At higher speeds (25+mph) we can assume:
 # Lateral acceleration achieved by a specific car correlates to
@@ -113,7 +113,7 @@ class LatControlTorque(LatControl):
       # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
       ff -= self.torque_params.latAccelOffset
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
-      friction_threshold = float(np.interp(CS.vEgo, SLEW_SPEEDS,
+      friction_threshold = float(np.interp(CS.vEgo, FRICTION_SPEEDS,
                                            [self.steer_tune.friction_threshold_lo, self.steer_tune.friction_threshold]))
       ff += get_friction(error, lateral_accel_deadzone, friction_threshold, self.torque_params)
 

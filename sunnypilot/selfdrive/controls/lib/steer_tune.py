@@ -29,7 +29,7 @@ KNOBS: dict[str, tuple[float, float, float]] = {
   # as soon as there is any error, which is what breaks the steering rack's static friction
   # and stops the stick-slip stepping in slow corners. A wide band at highway speed keeps the
   # same term from acting as a relay and chattering. friction_threshold sets the high-speed
-  # value; friction_threshold_lo the low-speed one (both interpolated on SLEW_SPEEDS).
+  # value; friction_threshold_lo the low-speed one (interpolated on FRICTION_SPEEDS).
   "friction_threshold": (0.3, 0.1, 1.0),
   "friction_threshold_lo": (0.3, 0.1, 1.0),
   "rate_filter_hz": (1.2, 0.3, 5.0),      # low-pass cutoff on the measurement rate that feeds KD
@@ -42,7 +42,12 @@ KNOBS: dict[str, tuple[float, float, float]] = {
 
 # The highway ping-pong is present from ~35 mph up, so the tight limit must be fully
 # in by 16 m/s; the loose limit only needs to cover parking-lot and tight-corner speeds.
-SLEW_SPEEDS = [7.0, 16.0]  # m/s
+SLEW_SPEEDS = [7.0, 16.0]  # m/s  (~16 and ~36 mph)
+
+# Stiction is a low-steering-effort problem, not a low-speed one: it still shows up in
+# 30 mph corners. Hold the narrow (stiction-breaking) band all the way to 18 m/s (~40 mph)
+# and only widen it over the range where the relay chatter actually appears.
+FRICTION_SPEEDS = [18.0, 27.0]  # m/s  (~40 and ~60 mph)
 
 
 class SteerTune:
