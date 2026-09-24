@@ -32,6 +32,11 @@ KNOBS: dict[str, tuple[float, float, float]] = {
   # value; friction_threshold_lo the low-speed one (interpolated on FRICTION_SPEEDS).
   "friction_threshold": (0.3, 0.1, 1.0),
   "friction_threshold_lo": (0.3, 0.1, 1.0),
+  # Multiplier on the friction feedforward's magnitude at low speed, ramping back to 1.0
+  # by FRICTION_SPEEDS[1]. The learned friction coefficient is fitted over a whole drive
+  # and lands well below what the rack needs to break away from a standstill, which shows
+  # up as the wheel stalling then stepping in slow corners. Only scales the friction term.
+  "friction_gain_lo": (1.0, 1.0, 3.0),
   "rate_filter_hz": (1.2, 0.3, 5.0),      # low-pass cutoff on the measurement rate that feeds KD
   # max rate of change of the final torque command, in steer-max units per second,
   # interpolated on speed between slew_lo (at/below 7 m/s) and slew_hi (at/above 16 m/s).
