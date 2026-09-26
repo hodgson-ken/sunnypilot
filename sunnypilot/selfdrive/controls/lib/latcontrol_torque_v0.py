@@ -10,7 +10,7 @@ from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
-from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune, SLEW_SPEEDS, FRICTION_SPEEDS
+from openpilot.sunnypilot.selfdrive.controls.lib.steer_tune import SteerTune, SLEW_SPEEDS, FRICTION_SPEEDS, KP_LO_SPEEDS
 
 # At higher speeds (25+mph) we can assume:
 # Lateral acceleration achieved by a specific car correlates to
@@ -57,7 +57,10 @@ class LatControlTorque(LatControl):
 
   def _apply_steer_tune(self):
     tune = self.steer_tune
-    self.pid._k_p = [INTERP_SPEEDS, [k * tune.kp_scale for k in KP_INTERP]]
+    # Scale the KP curve point by point: kp_scale_lo owns the low-speed end, kp_scale the rest.
+    self.pid._k_p = [INTERP_SPEEDS,
+                     [k * tune.kp_scale * float(np.interp(v, KP_LO_SPEEDS, [tune.kp_scale_lo, 1.0]))
+                      for v, k in zip(INTERP_SPEEDS, KP_INTERP, strict=True)]]
     self.pid._k_i = [[0], [tune.ki]]
     self.pid._k_d = [[0], [tune.kd]]
     self.measurement_rate_filter.update_alpha(1 / (2 * np.pi * tune.rate_filter_hz))

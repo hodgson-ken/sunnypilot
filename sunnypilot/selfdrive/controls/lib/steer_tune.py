@@ -23,6 +23,11 @@ REFRESH_FRAMES = 300  # ~3 s at 100 Hz, matches PARAMS_UPDATE_PERIOD
 KNOBS: dict[str, tuple[float, float, float]] = {
   "kd": (0.0, 0.0, 0.5),                  # derivative gain on filtered lat accel rate, m/s^2 per m/s^3
   "kp_scale": (1.0, 0.3, 1.5),            # multiplier on the whole speed-scheduled KP curve
+  # Multiplier applied to the KP curve only at the low-speed end, blending back to kp_scale
+  # by KP_LO_SPEED. The stock schedule reaches KP 250 at 1 m/s, so a near-zero error can
+  # still command full torque at parking speeds; this trims that end without touching
+  # highway gain.
+  "kp_scale_lo": (1.0, 0.1, 1.5),
   "ki": (0.3, 0.0, 0.5),                  # integral gain
   # Lat accel error band over which the friction term ramps in. Speed-scheduled like the
   # slew limit: a narrow band at low speed makes the friction feedforward reach full strength
@@ -53,6 +58,9 @@ SLEW_SPEEDS = [7.0, 16.0]  # m/s  (~16 and ~36 mph)
 # 30 mph corners. Hold the narrow (stiction-breaking) band all the way to 18 m/s (~40 mph)
 # and only widen it over the range where the relay chatter actually appears.
 FRICTION_SPEEDS = [18.0, 27.0]  # m/s  (~40 and ~60 mph)
+
+# kp_scale_lo applies fully at or below the first speed and blends to kp_scale by the second.
+KP_LO_SPEEDS = [7.0, 14.0]  # m/s  (~16 and ~31 mph)
 
 
 class SteerTune:
