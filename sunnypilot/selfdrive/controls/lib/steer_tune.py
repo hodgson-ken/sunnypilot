@@ -19,6 +19,13 @@ from openpilot.common.swaglog import cloudlog
 STEER_TUNE_PATH = "/data/steer_tune.json"
 REFRESH_FRAMES = 300  # ~3 s at 100 Hz, matches PARAMS_UPDATE_PERIOD
 
+# A/B switch for back-to-back road testing. If this file exists and its first
+# character is "0", every knob reverts to its stock default no matter what
+# steer_tune.json says; "1" (or a missing file) uses the tune normally. It is a
+# plain file rather than a Param because unregistered Param keys raise, and
+# registering one means editing params_keys.h and rebuilding on the device.
+STEER_TUNE_ENABLE_PATH = "/data/steer_tune_enabled"
+
 # name: (stock default, min, max)
 KNOBS: dict[str, tuple[float, float, float]] = {
   "kd": (0.0, 0.0, 0.5),                  # derivative gain on filtered lat accel rate, m/s^2 per m/s^3
@@ -27,7 +34,7 @@ KNOBS: dict[str, tuple[float, float, float]] = {
   # by KP_LO_SPEED. The stock schedule reaches KP 250 at 1 m/s, so a near-zero error can
   # still command full torque at parking speeds; this trims that end without touching
   # highway gain.
-  "kp_scale_lo": (1.0, 0.1, 1.5),
+  "kp_scale_lo": (1.0, 0.05, 1.5),
   "ki": (0.3, 0.0, 0.5),                  # integral gain
   # Lat accel error band over which the friction term ramps in. Speed-scheduled like the
   # slew limit: a narrow band at low speed makes the friction feedforward reach full strength
@@ -64,11 +71,20 @@ KP_LO_SPEEDS = [7.0, 14.0]  # m/s  (~16 and ~31 mph)
 
 
 class SteerTune:
-  def __init__(self, path: str = STEER_TUNE_PATH):
+  def __init__(self, path: str = STEER_TUNE_PATH, enable_path: str = STEER_TUNE_ENABLE_PATH):
     self.path = path
+    self.enable_path = enable_path
     self.frame = -1
     self.mtime = None
+    self.enabled = True
     self.values: dict[str, float] = {k: v[0] for k, v in KNOBS.items()}
+
+  def _read_enabled(self) -> bool:
+    try:
+      with open(self.enable_path) as f:
+        return f.read(1) != "0"
+    except OSError:
+      return True
 
   def __getattr__(self, name: str) -> float:
     try:
@@ -87,12 +103,14 @@ class SteerTune:
     except OSError:
       mtime = None
 
-    if mtime == self.mtime:
+    enabled = self._read_enabled()
+    if mtime == self.mtime and enabled == self.enabled:
       return False
     self.mtime = mtime
+    self.enabled = enabled
 
     new = {k: v[0] for k, v in KNOBS.items()}
-    if mtime is not None:
+    if mtime is not None and enabled:
       try:
         with open(self.path) as f:
           raw = json.load(f)
@@ -106,5 +124,5 @@ class SteerTune:
     changed = new != self.values
     self.values = new
     if changed:
-      cloudlog.info(f"steer_tune: {self.values}")
+      cloudlog.info(f"steer_tune: {'ON' if enabled else 'OFF (stock)'} {self.values}")
     return changed
