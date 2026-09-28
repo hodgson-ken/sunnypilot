@@ -7,6 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 import json
 import os
 
+from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 
 # Personal-fork lateral tuning knobs for the V0 torque controller.
@@ -19,12 +20,20 @@ from openpilot.common.swaglog import cloudlog
 STEER_TUNE_PATH = "/data/steer_tune.json"
 REFRESH_FRAMES = 300  # ~3 s at 100 Hz, matches PARAMS_UPDATE_PERIOD
 
-# A/B switch for back-to-back road testing. If this file exists and its first
-# character is "0", every knob reverts to its stock default no matter what
-# steer_tune.json says; "1" (or a missing file) uses the tune normally. It is a
-# plain file rather than a Param because unregistered Param keys raise, and
-# registering one means editing params_keys.h and rebuilding on the device.
+# A/B switch for back-to-back road testing, readable two ways. Either one asking for
+# stock wins, so the comparison is a real A/B rather than a partial one:
+#
+#   /data/steer_tune_enabled  - first character "0" disables the tune, "1" enables it.
+#   RainbowMode               - when on, the tune is disabled and lateral control is stock.
+#
+# RainbowMode is borrowed deliberately. It is a cosmetic path-colour toggle that is
+# exposed in the sunnylink UI and on the device, settable while driving, and touches
+# nothing in controls, which makes it the only switch reachable from a phone mid-drive
+# without adding a Params key (that would mean editing params_keys.h and rebuilding on
+# the device). The rainbow path on screen therefore doubles as a visible indicator that
+# stock steering is active.
 STEER_TUNE_ENABLE_PATH = "/data/steer_tune_enabled"
+STEER_TUNE_DISABLE_PARAM = "RainbowMode"
 
 # name: (stock default, min, max)
 KNOBS: dict[str, tuple[float, float, float]] = {
@@ -77,9 +86,16 @@ class SteerTune:
     self.frame = -1
     self.mtime = None
     self.enabled = True
+    self.params = Params()
     self.values: dict[str, float] = {k: v[0] for k, v in KNOBS.items()}
 
   def _read_enabled(self) -> bool:
+    try:
+      if self.params.get_bool(STEER_TUNE_DISABLE_PARAM):
+        return False
+    except Exception:
+      pass
+
     try:
       with open(self.enable_path) as f:
         return f.read(1) != "0"
