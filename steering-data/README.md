@@ -29,3 +29,21 @@ Below ~20 mph a limit cycle persists: the wheel swings roughly +/-35 deg at abou
 2 Hz while the planner requests a steady, near-zero lateral acceleration. Trimming
 the low-speed end of the KP curve (250 -> 87 -> 37 at 1 m/s) reduced but never
 eliminated it.
+
+## Result (2026-09-28, confirmed by A/B on a road trip)
+
+Toggled back and forth at highway speed on the same roads, using RainbowMode as
+the switch (on = stock, off = the tune):
+
+- **Stock: wobbled at high speed.**
+- **Tune: did not.**
+
+The driver's summary: "tried rainbow and it wobbled at high speed, reverted to our
+build and we are in a better spot at high speed."
+
+The tune in place for that comparison:
+
+    {"kp_scale_lo": 0.08, "slew_lo": 1.2, "slew_hi": 0.5}
+
+with NNLC enabled and the DTRV6 driving model. `slew_hi` is the knob that matters
+above ~36 mph; `kp_scale_lo` and `slew_lo` blend out to no effect by ~31 mph.
